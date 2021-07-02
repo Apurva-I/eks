@@ -1,0 +1,46 @@
+name: Merge release changes to main
+on:
+  push:
+    branches:
+      - "release-[0-9]+.[0-9]+"
+env:
+  VERSION_FILE: pkg/version/release.go
+  DEFAULT_BRANCH: main
+jobs:
+  merge_release:
+    name: Merge release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup identity as weaveworksbot
+        uses: ./.github/actions/setup-identity
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Merge release branch into ${{env.DEFAULT_BRANCH}}
+        run: |
+          git checkout $DEFAULT_BRANCH
+          git checkout -b merge-${{ github.sha }}
+          git merge --no-commit --no-ff ${{ github.ref }}
+          git checkout ORIG_HEAD -- $VERSION_FILE
+          git add $VERSION_FILE
+          EDITOR=true git merge --continue
+          ! git diff --exit-code $DEFAULT_BRANCH...HEAD || exit 1
+          git push --set-upstream origin HEAD
+      - uses: actions/github-script@v2.0.0
+        name: Open PR to ${{env.DEFAULT_BRANCH}}
+        with:
+          github-token: ${{ secrets.WEAVEWORKSBOT_TOKEN }}
+          script: |
+            const { data: pr } = await github.pulls.create({
+              ...context.repo,
+              title: `Merge ${context.ref} to ${{ env.DEFAULT_BRANCH }}`,
+              head: `merge-${context.sha}`,
+              base: "${{ env.DEFAULT_BRANCH }}",
+            });
+            await github.issues.addLabels({
+              ...context.repo,
+              issue_number: pr.number,
+              labels: ["skip-release-notes"],
+            });

@@ -1,0 +1,54 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      skipIntegrationTests:
+        description: 'Skip check for successful integration tests:'
+        default: 'false'
+
+jobs:
+  rc:
+    name: Trigger release candidate build
+    runs-on: ubuntu-latest
+    container: weaveworks/eksctl-build:fc5e06ce1b53fc87889accaf131f155f49797f52
+    steps:
+      - uses: actions/github-script@v3
+        name: Get integration tests status
+        id: it-status
+        with:
+          github-token: ${{ secrets.WEAVEWORKSBOT_TOKEN }}
+          script: |
+            // There's no other way to identify the integration test job
+            // GH branch protections are also just a string
+            // must be in sync with integration-tests.yaml
+            const integrationTestsCheckName = "Run integration tests";
+            const { data } = await github.checks.listForRef({
+              ...context.repo,
+              ref: "${{ github.sha }}",
+              check_name: integrationTestsCheckName,
+            });
+            return data.check_runs.some(cr =>
+              cr.status === "completed" && cr.conclusion === "success"
+            );
+      - name: Fail if integration tests not passed
+        if: "!fromJson(steps.it-status.outputs.result) && !fromJson(github.event.inputs.skipIntegrationTests)"
+        run: echo "Integration tests haven't passed yet!" && exit 1
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.WEAVEWORKSBOT_TOKEN }}
+          fetch-depth: 0
+      - name: Cache go-build and mod
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build/
+            ~/go/pkg/mod/
+          key: ${{ hashFiles('go.sum') }}
+      - name: Setup identity as weaveworksbot
+        uses: ./.github/actions/setup-identity
+        with:
+          token: "${{ secrets.WEAVEWORKSBOT_TOKEN }}"
+      - name: Open PRs to release branch and default branch
+        run: make prepare-release-candidate

@@ -1,0 +1,26 @@
+name-template: 'eksctl $NEXT_MINOR_VERSION'
+tag-template: '$NEXT_MINOR_VERSION'
+categories:
+  - title: 'Features'
+    labels:
+      - 'kind/feature'
+  - title: 'Improvements'
+    labels:
+      - 'kind/improvement'
+  - title: 'Bug Fixes'
+    labels:
+      - 'kind/bug'
+change-template: '- $TITLE (#$NUMBER)'
+template: |
+  # Release $NEXT_MINOR_VERSION
+
+  $CHANGES
+
+  ## Acknowledgments
+  Weaveworks would like to sincerely thank:
+  $CONTRIBUTORS
+replacers:
+  - search: '/@(Himangini|Callisto13|aclevername|nikimanoledaki|Skarlso|cPu1|weaveworksbot|dependabot(?:\[bot\])?)(?:,| |$)/gm'
+    replace: ''
+exclude-labels:
+  - 'skip-release-notes'
